@@ -51,7 +51,12 @@ const PurchaseCreditsPage: React.FC = () => {
     setError(null);
 
     try {
-      const token = await currentUser.getIdToken();
+      // CRITICAL: Force token refresh before making the request
+      console.log('🔄 Refreshing Firebase token...');
+      const token = await currentUser.getIdToken(true); // true = force refresh
+      console.log('✅ Token refreshed successfully');
+      
+      console.log('💳 Initiating payment for:', pkg.name);
       
       const response = await fetch('/.netlify/functions/start-payment', {
         method: 'POST',
@@ -62,10 +67,12 @@ const PurchaseCreditsPage: React.FC = () => {
         body: JSON.stringify({ packageId: pkg.id }),
       });
 
+      console.log('📡 Response status:', response.status);
+
       // Detailed error handling
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Payment error:', errorData);
+        console.error('❌ Payment error:', errorData);
         
         if (response.status === 401) {
           throw new Error('Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.');
@@ -77,15 +84,21 @@ const PurchaseCreditsPage: React.FC = () => {
       }
 
       const data = await response.json();
+      console.log('✅ Payment response:', data);
       
       // Redirect to Shopier payment page
       if (data.paymentUrl) {
+        console.log('🚀 Redirecting to payment page...');
+        // Clear console errors before redirect
+        if (typeof console.clear === 'function') {
+          console.clear();
+        }
         window.location.href = data.paymentUrl;
       } else {
         throw new Error('Ödeme URL\'si alınamadı. Lütfen tekrar deneyin.');
       }
     } catch (err) {
-      console.error('Purchase error:', err);
+      console.error('❌ Purchase error:', err);
       setError(err instanceof Error ? err.message : 'Bilinmeyen bir hata oluştu.');
       setLoadingPackage(null);
     }
