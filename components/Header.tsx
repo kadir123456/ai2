@@ -65,14 +65,14 @@ const Header: React.FC = () => {
           <div className="flex items-center gap-2">
             {currentUser ? (
               <>
-                {/* Balance Card - Sayı her zaman görünsün */}
-                <div className="flex items-center gap-2 bg-gray-800/60 px-3 py-2 rounded-lg border border-gray-700 flex-shrink-0">
+                {/* Balance Card - Kompakt ve okunabilir */}
+                <div className="flex items-center gap-2 bg-gray-800/70 px-2.5 py-2 rounded-lg border border-gray-700 flex-shrink-0 min-w-fit">
                   <WalletIcon className="w-5 h-5 text-green-400 flex-shrink-0" />
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-400 leading-none">Bakiye</span>
-                    <span className="font-bold text-green-400 text-sm leading-tight whitespace-nowrap">
-                      {balance !== null ? `${balance} Kredi` : '... Kredi'}
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-bold text-green-400 text-base tabular-nums">
+                      {balance !== null ? balance : '...'}
                     </span>
+                    <span className="text-xs text-gray-400">kredi</span>
                   </div>
                 </div>
 
