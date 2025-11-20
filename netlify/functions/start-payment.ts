@@ -1,6 +1,5 @@
 import type { Handler, HandlerEvent } from "@netlify/functions";
 import admin from 'firebase-admin';
-import crypto from 'crypto';
 
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
@@ -25,9 +24,9 @@ const packages: Record<string, { credits: number; price: number; name: string }>
   p_pro: { credits: 75, price: 300, name: 'Profesyonel Paket' },
 };
 
-const SHOPIER_API_KEY = process.env.SHOPIER_API_KEY;
-const SHOPIER_SECRET_KEY = process.env.SHOPIER_SECRET_KEY;
-const SHOPIER_API_URL = 'https://api.shopier.com/v1/payments';
+// Shopier API Credentials
+const SHOPIER_API_USER = process.env.SHOPIER_API_USER || '3b9d7f8a811d5b0034c6f670f2b37311';
+const SHOPIER_API_PASSWORD = process.env.SHOPIER_API_PASSWORD || '5536639175758c69ce1ef57c730f7a84';
 const TEST_MODE = process.env.PAYMENT_TEST_MODE === 'true';
 
 const handler: Handler = async (event: HandlerEvent) => {
@@ -68,7 +67,6 @@ const handler: Handler = async (event: HandlerEvent) => {
     let decodedToken;
     
     try {
-      console.log("🎫 Token received, verifying...");
       decodedToken = await admin.auth().verifyIdToken(token);
       console.log("✅ Token verified for user:", decodedToken.uid);
     } catch (authError: any) {
@@ -93,96 +91,112 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     const selectedPackage = packages[packageId];
-    const orderId = `${user.uid}-${packageId}-${Date.now()}`;
+    const orderId = `order_${user.uid.substring(0, 8)}_${Date.now()}`;
 
     console.log("💳 Creating payment for:", selectedPackage.name);
 
-    // TEST MODE: Skip Shopier and return test URL
+    // TEST MODE: Skip Shopier
     if (TEST_MODE) {
       console.log("⚠️ TEST MODE: Skipping Shopier API");
+      
+      // Simulate adding credits in test mode
+      const db = admin.database();
+      const userRef = db.ref(`users/${user.uid}`);
+      const snapshot = await userRef.once('value');
+      const currentBalance = snapshot.val()?.balance || 0;
+      
+      await userRef.update({
+        balance: currentBalance + selectedPackage.credits,
+        lastPurchase: {
+          packageId,
+          credits: selectedPackage.credits,
+          price: selectedPackage.price,
+          timestamp: Date.now(),
+          testMode: true
+        }
+      });
+      
+      console.log("✅ TEST: Credits added successfully");
+      
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({ 
-          paymentUrl: `${siteUrl}/purchase-success?test=true&orderId=${orderId}&package=${packageId}`,
+          paymentUrl: `${siteUrl}/purchase-success?test=true&credits=${selectedPackage.credits}`,
           testMode: true
         }),
       };
     }
 
-    // PRODUCTION MODE: Call Shopier
-    if (!SHOPIER_API_KEY || !SHOPIER_SECRET_KEY) {
-      console.error("❌ Shopier API keys are not configured.");
+    // PRODUCTION MODE: Call Shopier API
+    if (!SHOPIER_API_USER || !SHOPIER_API_PASSWORD) {
+      console.error("❌ Shopier credentials not configured");
       return { 
         statusCode: 500, 
         headers,
-        body: JSON.stringify({ error: 'Payment gateway is not configured. Please contact support.' }) 
+        body: JSON.stringify({ error: 'Ödeme sistemi yapılandırılmamış. Lütfen destek ile iletişime geçin.' }) 
       };
     }
 
-    const paymentData = {
-      amount: selectedPackage.price * 100,
-      currency: 'TRY',
-      buyer: {
-        id: user.uid,
-        name: user.displayName || user.email?.split('@')[0] || 'Kullanıcı',
-        surname: ' ',
-        email: user.email!,
-        phone: '5555555555',
-      },
-      billingAddress: {
-        address: "Placeholder Address",
-        city: "Istanbul",
-        postalCode: "34000",
-        country: "TR"
-      },
-      shippingAddress: {
-        address: "Placeholder Address",
-        city: "Istanbul",
-        postalCode: "34000",
-        country: "TR"
-      },
-      orderId: orderId,
-      productName: selectedPackage.name,
-      productCount: 1,
-      callbackUrl: `${siteUrl}/.netlify/functions/shopier-callback`,
-      redirectUrl: `${siteUrl}/purchase-success`,
+    // Shopier API için doğru payload
+    const shopierPayload = {
+      API_key: SHOPIER_API_USER,
+      API_secret: SHOPIER_API_PASSWORD,
+      random_nr: orderId,
+      buyer_name: user.displayName || user.email?.split('@')[0] || 'Kullanıcı',
+      buyer_email: user.email!,
+      buyer_phone: '5555555555',
+      buyer_account_age: '0',
+      billing_address: 'Adres bilgisi',
+      billing_city: 'Istanbul',
+      billing_postcode: '34000',
+      billing_country: 'Turkey',
+      product_name: selectedPackage.name,
+      product_type: '1', // Digital product
+      website_index: '1',
+      platform_order_id: orderId,
+      total_order_value: selectedPackage.price.toString(),
+      currency: 'TL',
+      current_language: 'tr',
+      modul_version: 'API_v1',
+      callback_url: `${siteUrl}/.netlify/functions/shopier-callback`,
+      back_url: `${siteUrl}/purchase-success`
     };
 
-    const requestBody = JSON.stringify(paymentData);
-    const signature = crypto
-      .createHmac('sha256', SHOPIER_SECRET_KEY)
-      .update(requestBody)
-      .digest('hex');
-
     console.log("🚀 Calling Shopier API...");
-    console.log("📡 API URL:", SHOPIER_API_URL);
-    console.log("🔑 Using API Key:", SHOPIER_API_KEY?.substring(0, 10) + '...');
+    console.log("📦 Order ID:", orderId);
     
-    const response = await fetch(SHOPIER_API_URL, {
+    const response = await fetch('https://www.shopier.com/ShowProduct/api_pay4.php', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SHOPIER_API_KEY}`,
-        'Signature': signature
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: requestBody,
+      body: new URLSearchParams(shopierPayload).toString(),
     });
 
-    const responseData = await response.json();
-    console.log("📥 Shopier Response Status:", response.status);
-    console.log("📥 Shopier Response:", responseData);
+    const responseText = await response.text();
+    console.log("📥 Shopier Response:", responseText);
 
-    if (!response.ok) {
-      console.error("❌ Shopier API Error:", responseData);
-      throw new Error(responseData.message || 'Shopier API returned an error. Please check your API credentials.');
+    // Shopier returns HTML with payment form
+    if (!response.ok || !responseText.includes('form')) {
+      console.error("❌ Shopier API Error");
+      throw new Error('Ödeme sayfası oluşturulamadı. Lütfen tekrar deneyin.');
     }
 
-    console.log("✅ Payment initiated successfully");
+    // Extract payment URL from response
+    // Shopier usually returns a form with action URL
+    const urlMatch = responseText.match(/action="([^"]+)"/);
+    const paymentUrl = urlMatch ? urlMatch[1] : `https://www.shopier.com/payment?order=${orderId}`;
+
+    console.log("✅ Payment page created");
+    
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ paymentUrl: responseData.paymentUrl }),
+      body: JSON.stringify({ 
+        paymentUrl,
+        orderId
+      }),
     };
 
   } catch (error: any) {
@@ -193,8 +207,8 @@ const handler: Handler = async (event: HandlerEvent) => {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
-        error: error.message || 'Internal Server Error',
-        details: error.stack
+        error: error.message || 'Ödeme işlemi başlatılamadı',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       }),
     };
   }
