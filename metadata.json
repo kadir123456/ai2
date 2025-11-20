@@ -1,0 +1,5 @@
+{
+  "name": "Maç Tahmin Yapay Zekası",
+  "description": "Yapay zeka destekli bir futbol maçı tahmin uygulaması. Bir maç listesi resmi yükleyin, yapay zeka istatistikleri analiz ederek maç tahminleri sunsun.",
+  "requestFramePermissions": []
+}
