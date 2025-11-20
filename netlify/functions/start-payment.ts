@@ -5,32 +5,7 @@ import crypto from 'crypto';
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
   try {
-    console.log("🔍 Checking FIREBASE_SERVICE_ACCOUNT_KEY...");
-    
-    const serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    
-    if (!serviceAccountEnv) {
-      console.error("❌ FIREBASE_SERVICE_ACCOUNT_KEY is not set!");
-      throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY is missing");
-    }
-    
-    console.log("✅ FIREBASE_SERVICE_ACCOUNT_KEY exists");
-    console.log("📏 Length:", serviceAccountEnv.length);
-    console.log("🔤 First 100 chars:", serviceAccountEnv.substring(0, 100));
-    
-    let serviceAccount;
-    try {
-      serviceAccount = JSON.parse(serviceAccountEnv);
-      console.log("✅ JSON parsed successfully");
-      console.log("📦 Keys in JSON:", Object.keys(serviceAccount));
-      console.log("🔑 Project ID:", serviceAccount.project_id);
-      console.log("📧 Client Email:", serviceAccount.client_email);
-      console.log("🔐 Has private_key:", !!serviceAccount.private_key);
-      console.log("🔐 Private key length:", serviceAccount.private_key?.length || 0);
-    } catch (parseError) {
-      console.error("❌ JSON Parse Error:", parseError);
-      throw new Error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY as JSON");
-    }
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}');
     
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
@@ -53,6 +28,7 @@ const packages: Record<string, { credits: number; price: number; name: string }>
 const SHOPIER_API_KEY = process.env.SHOPIER_API_KEY;
 const SHOPIER_SECRET_KEY = process.env.SHOPIER_SECRET_KEY;
 const SHOPIER_API_URL = 'https://api.shopier.com/v1/payments';
+const TEST_MODE = process.env.PAYMENT_TEST_MODE === 'true';
 
 const handler: Handler = async (event: HandlerEvent) => {
   const headers = {
@@ -71,15 +47,6 @@ const handler: Handler = async (event: HandlerEvent) => {
       statusCode: 405, 
       headers,
       body: JSON.stringify({ error: 'Method Not Allowed' })
-    };
-  }
-
-  if (!SHOPIER_API_KEY || !SHOPIER_SECRET_KEY) {
-    console.error("❌ Shopier API keys are not configured.");
-    return { 
-      statusCode: 500, 
-      headers,
-      body: JSON.stringify({ error: 'Payment gateway is not configured.' }) 
     };
   }
 
@@ -130,6 +97,29 @@ const handler: Handler = async (event: HandlerEvent) => {
 
     console.log("💳 Creating payment for:", selectedPackage.name);
 
+    // TEST MODE: Skip Shopier and return test URL
+    if (TEST_MODE) {
+      console.log("⚠️ TEST MODE: Skipping Shopier API");
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ 
+          paymentUrl: `${siteUrl}/purchase-success?test=true&orderId=${orderId}&package=${packageId}`,
+          testMode: true
+        }),
+      };
+    }
+
+    // PRODUCTION MODE: Call Shopier
+    if (!SHOPIER_API_KEY || !SHOPIER_SECRET_KEY) {
+      console.error("❌ Shopier API keys are not configured.");
+      return { 
+        statusCode: 500, 
+        headers,
+        body: JSON.stringify({ error: 'Payment gateway is not configured. Please contact support.' }) 
+      };
+    }
+
     const paymentData = {
       amount: selectedPackage.price * 100,
       currency: 'TRY',
@@ -166,6 +156,9 @@ const handler: Handler = async (event: HandlerEvent) => {
       .digest('hex');
 
     console.log("🚀 Calling Shopier API...");
+    console.log("📡 API URL:", SHOPIER_API_URL);
+    console.log("🔑 Using API Key:", SHOPIER_API_KEY?.substring(0, 10) + '...');
+    
     const response = await fetch(SHOPIER_API_URL, {
       method: 'POST',
       headers: {
@@ -177,10 +170,12 @@ const handler: Handler = async (event: HandlerEvent) => {
     });
 
     const responseData = await response.json();
+    console.log("📥 Shopier Response Status:", response.status);
+    console.log("📥 Shopier Response:", responseData);
 
     if (!response.ok) {
       console.error("❌ Shopier API Error:", responseData);
-      throw new Error(responseData.message || 'Failed to initiate payment with Shopier.');
+      throw new Error(responseData.message || 'Shopier API returned an error. Please check your API credentials.');
     }
 
     console.log("✅ Payment initiated successfully");
