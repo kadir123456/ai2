@@ -1,3 +1,8 @@
+export interface User {
+  uid: string;
+  email: string | null;
+}
+
 export interface Team {
   name: string;
 }
