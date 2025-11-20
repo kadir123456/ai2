@@ -29,7 +29,7 @@ const Header: React.FC = () => {
       <div className="container mx-auto px-3 sm:px-4">
         <div className="flex items-center justify-between h-14 sm:h-16">
           
-          {/* Logo - Sadece icon mobilde */}
+          {/* Logo */}
           <Link 
             to="/" 
             className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0"
@@ -53,22 +53,10 @@ const Header: React.FC = () => {
                 Görsel Analiz
               </Link>
               <Link 
-                to="/newsletter" 
-                className="text-gray-300 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
-              >
-                Bülten
-              </Link>
-              <Link 
                 to="/purchase-credits" 
                 className="text-gray-300 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
               >
                 Krediler
-              </Link>
-              <Link 
-                to="/profile" 
-                className="text-gray-300 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
-              >
-                Profil
               </Link>
             </nav>
           )}
@@ -77,19 +65,22 @@ const Header: React.FC = () => {
           <div className="flex items-center gap-2">
             {currentUser ? (
               <>
-                {/* Balance - Compact for all screens */}
-                <div className="flex items-center gap-1.5 bg-gray-800/60 px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700 flex-shrink-0">
-                  <WalletIcon className="w-4 h-4 text-green-400 flex-shrink-0" />
-                  <span className="font-bold text-green-400 text-xs sm:text-sm whitespace-nowrap">
-                    {balance !== null ? balance : '...'}
-                  </span>
+                {/* Balance Card - Sayı her zaman görünsün */}
+                <div className="flex items-center gap-2 bg-gray-800/60 px-3 py-2 rounded-lg border border-gray-700 flex-shrink-0">
+                  <WalletIcon className="w-5 h-5 text-green-400 flex-shrink-0" />
+                  <div className="flex flex-col">
+                    <span className="text-xs text-gray-400 leading-none">Bakiye</span>
+                    <span className="font-bold text-green-400 text-sm leading-tight whitespace-nowrap">
+                      {balance !== null ? `${balance} Kredi` : '... Kredi'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Desktop Buttons */}
                 <div className="hidden md:flex items-center gap-2">
                   <Link 
                     to="/purchase-credits" 
-                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg text-white font-medium transition-colors text-sm whitespace-nowrap"
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white font-medium transition-colors text-sm whitespace-nowrap"
                   >
                     <StoreIcon className="w-4 h-4" />
                     <span>Kredi Yükle</span>
@@ -97,7 +88,7 @@ const Header: React.FC = () => {
 
                   <button
                     onClick={handleLogout}
-                    className="flex items-center gap-1.5 bg-red-600/90 hover:bg-red-600 px-3 py-2 rounded-lg text-white font-medium transition-colors text-sm whitespace-nowrap"
+                    className="flex items-center gap-2 bg-red-600/90 hover:bg-red-600 px-4 py-2 rounded-lg text-white font-medium transition-colors text-sm whitespace-nowrap"
                   >
                     <LogoutIcon className="w-4 h-4" />
                     <span>Çıkış</span>
@@ -125,14 +116,14 @@ const Header: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Link 
                   to="/login" 
-                  className="flex items-center gap-1.5 text-gray-300 hover:text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium whitespace-nowrap"
+                  className="flex items-center gap-2 text-gray-300 hover:text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium whitespace-nowrap"
                 >
                   <LoginIcon className="w-4 h-4" />
                   <span className="hidden sm:inline">Giriş</span>
                 </Link>
                 <Link 
                   to="/register" 
-                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-medium px-3 py-2 rounded-lg transition-colors text-sm whitespace-nowrap"
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium px-3 py-2 rounded-lg transition-colors text-sm whitespace-nowrap"
                 >
                   <UserAddIcon className="w-4 h-4" />
                   <span>Kayıt Ol</span>
@@ -144,7 +135,7 @@ const Header: React.FC = () => {
 
         {/* Mobile Menu Dropdown */}
         {mobileMenuOpen && currentUser && (
-          <div className="md:hidden border-t border-gray-800 py-3 space-y-1">
+          <div className="md:hidden border-t border-gray-800 py-3 space-y-1 animate-fadeIn">
             <Link 
               to="/" 
               className="block px-4 py-2.5 text-gray-300 hover:bg-gray-800 hover:text-white rounded-lg transition-colors text-sm"
@@ -153,25 +144,11 @@ const Header: React.FC = () => {
               📊 Görsel Analiz
             </Link>
             <Link 
-              to="/newsletter" 
-              className="block px-4 py-2.5 text-gray-300 hover:bg-gray-800 hover:text-white rounded-lg transition-colors text-sm"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              📰 Bülten
-            </Link>
-            <Link 
               to="/purchase-credits" 
               className="block px-4 py-2.5 text-gray-300 hover:bg-gray-800 hover:text-white rounded-lg transition-colors text-sm"
               onClick={() => setMobileMenuOpen(false)}
             >
-              💳 Krediler
-            </Link>
-            <Link 
-              to="/profile" 
-              className="block px-4 py-2.5 text-gray-300 hover:bg-gray-800 hover:text-white rounded-lg transition-colors text-sm"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              👤 Profil
+              💳 Kredi Yükle
             </Link>
             
             <div className="border-t border-gray-800 my-2 pt-2">
