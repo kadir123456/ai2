@@ -1,15 +1,19 @@
 import type { Handler, HandlerEvent } from "@netlify/functions";
 import admin from 'firebase-admin';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+
+// Read the service account key from a file instead of a large env var
+const saPath = path.join(__dirname, 'firebase-service-account.json');
+const serviceAccount = JSON.parse(fs.readFileSync(saPath, 'utf-8'));
 
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(
-    Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!, 'base64').toString('utf-8')
-  );
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    databaseURL: process.env.VITE_FIREBASE_DATABASE_URL
+    // IMPORTANT: Server-side functions use the non-VITE_ prefixed variable
+    databaseURL: process.env.FIREBASE_DATABASE_URL 
   });
 }
 
