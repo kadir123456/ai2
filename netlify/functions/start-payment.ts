@@ -5,15 +5,42 @@ import crypto from 'crypto';
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
   try {
-    // CRITICAL: Use environment variable for service account
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}');
+    console.log("🔍 Checking FIREBASE_SERVICE_ACCOUNT_KEY...");
+    
+    const serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    
+    if (!serviceAccountEnv) {
+      console.error("❌ FIREBASE_SERVICE_ACCOUNT_KEY is not set!");
+      throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY is missing");
+    }
+    
+    console.log("✅ FIREBASE_SERVICE_ACCOUNT_KEY exists");
+    console.log("📏 Length:", serviceAccountEnv.length);
+    console.log("🔤 First 100 chars:", serviceAccountEnv.substring(0, 100));
+    
+    let serviceAccount;
+    try {
+      serviceAccount = JSON.parse(serviceAccountEnv);
+      console.log("✅ JSON parsed successfully");
+      console.log("📦 Keys in JSON:", Object.keys(serviceAccount));
+      console.log("🔑 Project ID:", serviceAccount.project_id);
+      console.log("📧 Client Email:", serviceAccount.client_email);
+      console.log("🔐 Has private_key:", !!serviceAccount.private_key);
+      console.log("🔐 Private key length:", serviceAccount.private_key?.length || 0);
+    } catch (parseError) {
+      console.error("❌ JSON Parse Error:", parseError);
+      throw new Error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY as JSON");
+    }
     
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
       databaseURL: process.env.FIREBASE_DATABASE_URL 
     });
+    
+    console.log("✅ Firebase Admin initialized successfully");
   } catch (error) {
-    console.error("Firebase Admin initialization failed:", error);
+    console.error("❌ Firebase Admin initialization failed:", error);
+    throw error;
   }
 }
 
@@ -28,7 +55,6 @@ const SHOPIER_SECRET_KEY = process.env.SHOPIER_SECRET_KEY;
 const SHOPIER_API_URL = 'https://api.shopier.com/v1/payments';
 
 const handler: Handler = async (event: HandlerEvent) => {
-  // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -36,13 +62,8 @@ const handler: Handler = async (event: HandlerEvent) => {
     'Content-Type': 'application/json'
   };
 
-  // Handle preflight request
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: ''
-    };
+    return { statusCode: 200, headers, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
@@ -53,9 +74,8 @@ const handler: Handler = async (event: HandlerEvent) => {
     };
   }
 
-  // Check if Shopier keys are configured
   if (!SHOPIER_API_KEY || !SHOPIER_SECRET_KEY) {
-    console.error("Shopier API keys are not configured.");
+    console.error("❌ Shopier API keys are not configured.");
     return { 
       statusCode: 500, 
       headers,
@@ -63,12 +83,12 @@ const handler: Handler = async (event: HandlerEvent) => {
     };
   }
 
-  // Get site URL
   const siteUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://aimac.netlify.app';
 
   try {
-    // Verify Firebase token
+    console.log("🔐 Verifying token...");
     const { authorization } = event.headers;
+    
     if (!authorization || !authorization.startsWith('Bearer ')) {
       return { 
         statusCode: 401, 
@@ -81,9 +101,11 @@ const handler: Handler = async (event: HandlerEvent) => {
     let decodedToken;
     
     try {
+      console.log("🎫 Token received, verifying...");
       decodedToken = await admin.auth().verifyIdToken(token);
-    } catch (authError) {
-      console.error("Token verification failed:", authError);
+      console.log("✅ Token verified for user:", decodedToken.uid);
+    } catch (authError: any) {
+      console.error("❌ Token verification failed:", authError.message);
       return {
         statusCode: 401,
         headers,
@@ -92,8 +114,8 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     const user = await admin.auth().getUser(decodedToken.uid);
+    console.log("✅ User fetched:", user.email);
 
-    // Parse and validate request body
     const { packageId } = JSON.parse(event.body || '{}');
     if (!packageId || !packages[packageId]) {
       return { 
@@ -106,9 +128,10 @@ const handler: Handler = async (event: HandlerEvent) => {
     const selectedPackage = packages[packageId];
     const orderId = `${user.uid}-${packageId}-${Date.now()}`;
 
-    // Prepare payment data
+    console.log("💳 Creating payment for:", selectedPackage.name);
+
     const paymentData = {
-      amount: selectedPackage.price * 100, // Amount in cents
+      amount: selectedPackage.price * 100,
       currency: 'TRY',
       buyer: {
         id: user.uid,
@@ -137,14 +160,12 @@ const handler: Handler = async (event: HandlerEvent) => {
     };
 
     const requestBody = JSON.stringify(paymentData);
-
-    // Create signature
     const signature = crypto
       .createHmac('sha256', SHOPIER_SECRET_KEY)
       .update(requestBody)
       .digest('hex');
 
-    // Call Shopier API
+    console.log("🚀 Calling Shopier API...");
     const response = await fetch(SHOPIER_API_URL, {
       method: 'POST',
       headers: {
@@ -158,10 +179,11 @@ const handler: Handler = async (event: HandlerEvent) => {
     const responseData = await response.json();
 
     if (!response.ok) {
-      console.error("Shopier API Error:", responseData);
+      console.error("❌ Shopier API Error:", responseData);
       throw new Error(responseData.message || 'Failed to initiate payment with Shopier.');
     }
 
+    console.log("✅ Payment initiated successfully");
     return {
       statusCode: 200,
       headers,
@@ -169,13 +191,15 @@ const handler: Handler = async (event: HandlerEvent) => {
     };
 
   } catch (error: any) {
-    console.error("Payment initiation failed:", error);
+    console.error("❌ Payment initiation failed:", error);
+    console.error("📋 Error stack:", error.stack);
+    
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: error.message || 'Internal Server Error',
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        details: error.stack
       }),
     };
   }
