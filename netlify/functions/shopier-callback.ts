@@ -1,100 +1,113 @@
 import type { Handler, HandlerEvent } from "@netlify/functions";
 import admin from 'firebase-admin';
-import { getDatabase, ServerValue } from 'firebase-admin/database';
-import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
 
-// Read the service account key from a file instead of a large env var
-const saPath = path.join(__dirname, 'firebase-service-account.json');
-const serviceAccount = JSON.parse(fs.readFileSync(saPath, 'utf-8'));
-
-// Initialize Firebase Admin SDK
+// Initialize Firebase Admin (reuse from start-payment)
 if (!admin.apps.length) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}');
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      // IMPORTANT: Server-side functions use the non-VITE_ prefixed variable
-      databaseURL: process.env.FIREBASE_DATABASE_URL,
+      databaseURL: process.env.FIREBASE_DATABASE_URL 
     });
+  } catch (error) {
+    console.error("Firebase init error:", error);
+  }
 }
-  
-const packages = {
-    p_trial: { credits: 5 },
-    p_standard: { credits: 25 },
-    p_pro: { credits: 75 },
+
+const packages: Record<string, { credits: number }> = {
+  p_trial: { credits: 5 },
+  p_standard: { credits: 25 },
+  p_pro: { credits: 75 },
 };
 
-const SHOPIER_SECRET_KEY = process.env.SHOPIER_SECRET_KEY;
-
 const handler: Handler = async (event: HandlerEvent) => {
-    if (!SHOPIER_SECRET_KEY) {
-        console.error("Shopier Secret Key is not configured.");
-        return { statusCode: 500, body: 'Webhook processor is not configured.' };
-    }
+  console.log("🔔 Shopier callback received");
+  console.log("📦 Method:", event.httpMethod);
+  console.log("📦 Body:", event.body);
 
-    const receivedSignature = event.headers['signature'];
-    const rawBody = event.body;
+  try {
+    // Shopier sends POST with form data
+    const params = new URLSearchParams(event.body || '');
+    
+    const status = params.get('status');
+    const orderId = params.get('platform_order_id') || params.get('random_nr');
+    
+    console.log("📊 Payment status:", status);
+    console.log("🆔 Order ID:", orderId);
 
-    if (!receivedSignature || !rawBody) {
-        console.warn("Callback received without signature or body.");
-        return { statusCode: 400, body: 'Bad Request' };
-    }
+    // Payment successful
+    if (status === '1' || status === 'success') {
+      // Extract user ID and package from order ID
+      // Format: order_USERID_TIMESTAMP or USERID-PACKAGEID-TIMESTAMP
+      const parts = orderId?.split('_') || orderId?.split('-') || [];
+      let userId: string | null = null;
+      let packageId: string | null = null;
 
-    try {
-        // --- Verify Signature ---
-        const expectedSignature = crypto
-            .createHmac('sha256', SHOPIER_SECRET_KEY)
-            .update(rawBody)
-            .digest('hex');
+      if (orderId?.includes('-')) {
+        // Format: USERID-PACKAGEID-TIMESTAMP
+        [userId, packageId] = parts;
+      } else if (orderId?.includes('_')) {
+        // Format: order_USERID_TIMESTAMP
+        userId = parts[1];
+        // Try to get package from other params
+        packageId = params.get('product_name')?.includes('Standart') ? 'p_standard' :
+                    params.get('product_name')?.includes('Pro') ? 'p_pro' : 'p_trial';
+      }
 
-        const receivedSignBuffer = Buffer.from(receivedSignature);
-        const expectedSignBuffer = Buffer.from(expectedSignature);
-
-        // Use timingSafeEqual to prevent timing attacks
-        if (!crypto.timingSafeEqual(receivedSignBuffer, expectedSignBuffer)) {
-            console.error("Invalid signature.");
-            return { statusCode: 401, body: 'Unauthorized' };
-        }
-
-        // --- Process Webhook Data ---
-        const data = JSON.parse(rawBody);
-        
-        // Only add credits if the payment is fully completed
-        if (data.status !== 'COMPLETED') {
-             console.log(`Callback processed for order ${data.orderId} with status ${data.status}. No action taken.`);
-             return { statusCode: 200, body: 'OK. Status not completed.' };
-        }
-
-        const uid = data.buyer.id;
-        const orderId = data.orderId; // Format: "uid-packageId-timestamp"
-        const packageId = orderId.split('-')[1];
-
-        if (!uid || !packageId || !packages[packageId]) {
-            console.error("Invalid payload structure. Could not find uid or packageId from orderId:", orderId);
-            return { statusCode: 400, body: 'Invalid payload' };
-        }
-
-        const creditsToAdd = packages[packageId].credits;
-        
-        const db = getDatabase();
-        const creditsRef = db.ref(`users/${uid}/credits`);
-        
-        await creditsRef.set(ServerValue.increment(creditsToAdd));
-
-        console.log(`Successfully incremented ${creditsToAdd} credits for user ${uid}.`);
-
+      if (!userId) {
+        console.error("❌ Could not extract user ID from order:", orderId);
         return {
-            statusCode: 200,
-            body: 'OK',
+          statusCode: 400,
+          body: 'Invalid order ID'
         };
-    } catch (error) {
-        console.error('Error processing Shopier callback:', error);
-        // Return 200 to prevent Shopier from resending on our processing errors.
-        return {
-            statusCode: 200, 
-            body: 'Error processing request.',
-        };
+      }
+
+      const creditsToAdd = packages[packageId || 'p_trial']?.credits || 5;
+
+      console.log("💰 Adding credits to user:", userId);
+      console.log("🎁 Credits amount:", creditsToAdd);
+
+      // Update user balance in Firebase
+      const db = admin.database();
+      const userRef = db.ref(`users/${userId}`);
+      
+      const snapshot = await userRef.once('value');
+      const currentBalance = snapshot.val()?.balance || 0;
+      
+      await userRef.update({
+        balance: currentBalance + creditsToAdd,
+        lastPurchase: {
+          orderId,
+          packageId,
+          credits: creditsToAdd,
+          timestamp: Date.now(),
+          shopierStatus: status
+        }
+      });
+
+      console.log("✅ Credits added successfully");
+      console.log("📈 New balance:", currentBalance + creditsToAdd);
+
+      return {
+        statusCode: 200,
+        body: 'OK'
+      };
     }
+
+    // Payment failed
+    console.log("⚠️ Payment not successful, status:", status);
+    return {
+      statusCode: 200,
+      body: 'Payment not completed'
+    };
+
+  } catch (error: any) {
+    console.error("❌ Callback processing failed:", error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: error.message })
+    };
+  }
 };
 
 export { handler };
