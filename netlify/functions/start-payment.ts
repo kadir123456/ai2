@@ -27,7 +27,13 @@ const packages: Record<string, { credits: number; price: number; name: string }>
 // Shopier API Credentials
 const SHOPIER_API_USER = process.env.SHOPIER_API_USER || '3b9d7f8a811d5b0034c6f670f2b37311';
 const SHOPIER_API_PASSWORD = process.env.SHOPIER_API_PASSWORD || '5536639175758c69ce1ef57c730f7a84';
-const TEST_MODE = process.env.PAYMENT_TEST_MODE === 'true';
+
+// Test mode: only true if explicitly set to "true"
+const TEST_MODE = process.env.PAYMENT_TEST_MODE?.toLowerCase()?.trim() === 'true';
+
+console.log("🔧 Environment check:");
+console.log("  - PAYMENT_TEST_MODE value:", process.env.PAYMENT_TEST_MODE);
+console.log("  - TEST_MODE active:", TEST_MODE);
 
 const handler: Handler = async (event: HandlerEvent) => {
   const headers = {
