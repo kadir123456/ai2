@@ -1,11 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { onAuthStateChanged, User as FirebaseUser, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, AuthError } from 'firebase/auth';
+import { onAuthStateChanged, User as FirebaseUser, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { ref, set, onValue, off, update, increment } from 'firebase/database';
 import { auth, db } from '../services/firebase';
-import { User } from '../types';
 
 interface AuthContextType {
-  currentUser: User | null;
+  currentUser: FirebaseUser | null;
   loading: boolean;
   balance: number | null;
   register: (email: string, password: string) => Promise<void>;
@@ -13,6 +12,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateBalance: (newBalance: number) => Promise<void>;
   decrementBalance: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,17 +32,13 @@ interface AuthProviderProps {
 const TRIAL_CREDITS = 3;
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user: FirebaseUser | null) => {
-      if (user) {
-        setCurrentUser({ uid: user.uid, email: user.email });
-      } else {
-        setCurrentUser(null);
-      }
+      setCurrentUser(user);
       setLoading(false);
     });
 
@@ -67,7 +63,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (email: string, password: string) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
-    // Create user profile in Realtime Database with trial credits
     await set(ref(db, `users/${user.uid}`), {
       email: user.email,
       credits: TRIAL_CREDITS,
@@ -97,6 +92,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const resetPassword = async (email: string) => {
+    await sendPasswordResetEmail(auth, email);
+  };
 
   const value = {
     currentUser,
@@ -107,6 +105,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     updateBalance,
     decrementBalance,
+    resetPassword,
   };
 
   return (

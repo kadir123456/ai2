@@ -9,7 +9,7 @@ const Footer: React.FC = () => {
                 |
                 <Link to="/terms-of-service" className="hover:text-gray-300 transition-colors mx-2">Hizmet Şartları</Link>
             </div>
-            <p>Tahminler yapay zeka tarafından oluşturulmuştur ve garanti edilmez. Lütfen sorumlu bir şekilde bahis yapın.</p>
+            <p>Tahminler yapay zeka tarafından oluşturulmuştur ve garanti edilmez. Tahminler sadece referans amaçlıdır. Lütfen sorumlu davranın.</p>
             <p>&copy; 2024 Maç Tahmin Yapay Zekası. Tüm hakları saklıdır.</p>
         </footer>
     );

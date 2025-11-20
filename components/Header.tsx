@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LoginIcon, LogoutIcon, UserAddIcon, WalletIcon } from './IconComponents';
+import { LoginIcon, LogoutIcon, UserAddIcon, WalletIcon, StoreIcon } from './IconComponents';
 
 const Header: React.FC = () => {
   const { currentUser, logout, balance } = useAuth();
@@ -24,19 +24,23 @@ const Header: React.FC = () => {
             Maç Tahmin Yapay Zekası
             </h1>
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {currentUser ? (
             <>
               <div className="flex items-center gap-2 bg-gray-800/50 px-3 py-2 rounded-lg">
                 <WalletIcon className="w-6 h-6 text-green-400" />
-                <span className="font-bold text-white">{balance !== null ? balance : '...'} Kredi</span>
+                <span className="font-bold text-white text-sm md:text-base">{balance !== null ? balance : '...'} Kredi</span>
               </div>
+              <Link to="/purchase-credits" className="flex items-center gap-2 bg-blue-600/80 hover:bg-blue-600 px-3 py-2 rounded-lg text-white font-semibold transition-colors text-sm md:text-base">
+                <StoreIcon className="w-5 h-5" />
+                <span className="hidden md:inline">Kredi Yükle</span>
+              </Link>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 bg-red-600/80 hover:bg-red-600 px-4 py-2 rounded-lg text-white font-semibold transition-colors"
+                className="flex items-center gap-2 bg-red-600/80 hover:bg-red-600 px-3 py-2 rounded-lg text-white font-semibold transition-colors text-sm md:text-base"
               >
                 <LogoutIcon className="w-5 h-5" />
-                <span>Çıkış Yap</span>
+                <span className="hidden md:inline">Çıkış Yap</span>
               </button>
             </>
           ) : (

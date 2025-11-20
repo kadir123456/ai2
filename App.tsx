@@ -7,6 +7,10 @@ import RegisterPage from './components/pages/RegisterPage';
 import PrivacyPolicyPage from './components/pages/PrivacyPolicyPage';
 import TermsOfServicePage from './components/pages/TermsOfServicePage';
 import ProtectedRoute from './components/ProtectedRoute';
+import PurchaseCreditsPage from './components/pages/PurchaseCreditsPage';
+import ForgotPasswordPage from './components/pages/ForgotPasswordPage';
+import PurchaseSuccessPage from './components/pages/PurchaseSuccessPage';
+import PurchaseCancelPage from './components/pages/PurchaseCancelPage';
 
 const App: React.FC = () => {
   return (
@@ -20,8 +24,33 @@ const App: React.FC = () => {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="purchase-credits" 
+          element={
+            <ProtectedRoute>
+              <PurchaseCreditsPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="purchase-success"
+          element={
+            <ProtectedRoute>
+              <PurchaseSuccessPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route 
+          path="purchase-cancel"
+          element={
+            <ProtectedRoute>
+              <PurchaseCancelPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
+        <Route path="forgot-password" element={<ForgotPasswordPage />} />
         <Route path="privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="terms-of-service" element={<TermsOfServicePage />} />
       </Route>

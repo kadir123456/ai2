@@ -93,7 +93,7 @@ const HomePage: React.FC = () => {
                     className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2 text-sm"
                 >
                     <ResetIcon />
-                    Yeni Kupon Analiz Et
+                    Yeni Analiz Yap
                 </button>
             </div>
             <div className="space-y-4">

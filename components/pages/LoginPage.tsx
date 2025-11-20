@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -7,8 +7,14 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, currentUser } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (currentUser) {
+      navigate('/');
+    }
+  }, [currentUser, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +49,7 @@ const LoginPage: React.FC = () => {
             required
           />
         </div>
-        <div className="mb-6">
+        <div className="mb-4">
           <label className="block text-gray-300 text-sm font-bold mb-2" htmlFor="password">
             Şifre
           </label>
@@ -56,6 +62,11 @@ const LoginPage: React.FC = () => {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+        </div>
+        <div className="text-right mb-6">
+            <Link to="/forgot-password" className="text-sm text-green-400 hover:text-green-300 transition-colors">
+                Şifrenizi mi unuttunuz?
+            </Link>
         </div>
         <div className="flex items-center justify-between">
           <button
