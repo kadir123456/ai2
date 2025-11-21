@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, User as FirebaseUser, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { ref, set, onValue, off, update, increment } from 'firebase/database';
+import { ref, set, onValue, off, update, runTransaction } from 'firebase/database';
 import { auth, db } from '../services/firebase';
 
 interface AuthContextType {
@@ -47,16 +47,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     if (currentUser) {
-      const balanceRef = ref(db, `users/${currentUser.uid}/credits`);
-      onValue(balanceRef, (snapshot) => {
+      const creditsRef = ref(db, `users/${currentUser.uid}/credits`);
+      
+      const unsubscribe = onValue(creditsRef, (snapshot) => {
         const data = snapshot.val();
+        console.log('🔄 Credits updated from Firebase:', data);
         setBalance(data !== null ? data : 0);
+      }, (error) => {
+        console.error('❌ Error reading credits:', error);
+        setBalance(0);
       });
 
       return () => {
-        off(balanceRef);
+        off(creditsRef);
         setBalance(null);
       };
+    } else {
+      setBalance(null);
     }
   }, [currentUser]);
   
@@ -68,27 +75,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       credits: TRIAL_CREDITS,
       createdAt: new Date().toISOString(),
     });
+    console.log('✅ User registered with', TRIAL_CREDITS, 'credits');
   };
 
   const login = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password);
+    console.log('✅ User logged in');
   };
   
   const logout = async () => {
     await signOut(auth);
+    console.log('✅ User logged out');
   };
 
   const updateBalance = async (newBalance: number) => {
     if (currentUser) {
-      const userRef = ref(db, `users/${currentUser.uid}`);
-      await update(userRef, { credits: newBalance });
+      const creditsRef = ref(db, `users/${currentUser.uid}/credits`);
+      await set(creditsRef, newBalance);
+      console.log('✅ Balance updated to:', newBalance);
     }
   };
 
   const decrementBalance = async () => {
-    if (currentUser) {
-        const creditsRef = ref(db, `users/${currentUser.uid}/credits`);
-        await set(creditsRef, increment(-1));
+    if (!currentUser) {
+      throw new Error('Kullanıcı oturumu bulunamadı');
+    }
+
+    const creditsRef = ref(db, `users/${currentUser.uid}/credits`);
+    
+    try {
+      await runTransaction(creditsRef, (currentCredits) => {
+        if (currentCredits === null) {
+          return 0;
+        }
+        if (currentCredits <= 0) {
+          throw new Error('Yetersiz kredi');
+        }
+        return currentCredits - 1;
+      });
+      console.log('✅ Credit decremented successfully');
+    } catch (error) {
+      console.error('❌ Error decrementing credits:', error);
+      throw error;
     }
   };
 
