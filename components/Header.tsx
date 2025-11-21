@@ -1,3 +1,4 @@
+// components/Header.tsx
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -70,7 +71,7 @@ const Header: React.FC = () => {
                   <WalletIcon className="w-5 h-5 text-green-400 flex-shrink-0" />
                   <div className="flex items-baseline gap-1">
                     <span className="font-bold text-green-400 text-base tabular-nums">
-                      {balance !== null ? balance : '...'}
+                      {balance ?? 0}
                     </span>
                     <span className="text-xs text-gray-400">kredi</span>
                   </div>
