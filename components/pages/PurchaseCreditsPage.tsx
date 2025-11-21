@@ -1,3 +1,4 @@
+// components/pages/PurchaseCreditsPage.tsx
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StoreIcon } from '../IconComponents';
@@ -51,12 +52,11 @@ const PurchaseCreditsPage: React.FC = () => {
     setError(null);
 
     try {
-      // CRITICAL: Force token refresh before making the request
-      console.log('🔄 Refreshing Firebase token...');
-      const token = await currentUser.getIdToken(true); // true = force refresh
-      console.log('✅ Token refreshed successfully');
+      console.log('🔄 Token yenileniyor...');
+      const token = await currentUser.getIdToken(true);
+      console.log('✅ Token hazır');
       
-      console.log('💳 Initiating payment for:', pkg.name);
+      console.log('💳 Ödeme başlatılıyor:', pkg.name);
       
       const response = await fetch('/.netlify/functions/start-payment', {
         method: 'POST',
@@ -67,38 +67,57 @@ const PurchaseCreditsPage: React.FC = () => {
         body: JSON.stringify({ packageId: pkg.id }),
       });
 
-      console.log('📡 Response status:', response.status);
+      console.log('📡 Response:', response.status);
 
-      // Detailed error handling
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Payment error:', errorData);
+        console.error('❌ Hata:', errorData);
         
         if (response.status === 401) {
           throw new Error('Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.');
         } else if (response.status === 500) {
           throw new Error(errorData.error || 'Sunucu hatası. Lütfen daha sonra tekrar deneyin.');
         } else {
-          throw new Error(errorData.error || 'Ödeme başlatılamadı. Lütfen tekrar deneyin.');
+          throw new Error(errorData.error || 'Ödeme başlatılamadı.');
         }
       }
 
       const data = await response.json();
-      console.log('✅ Payment response:', data);
+      console.log('✅ Yanıt alındı:', data);
       
-      // Redirect to Shopier payment page
-      if (data.paymentUrl) {
-        console.log('🚀 Redirecting to payment page...');
-        // Clear console errors before redirect
-        if (typeof console.clear === 'function') {
-          console.clear();
+      // Test mode - direkt yönlendir
+      if (data.testMode && data.paymentUrl) {
+        console.log('🚀 Test mode yönlendirme...');
+        window.location.href = data.paymentUrl;
+        return;
+      }
+
+      // Production - HTML formu işle
+      if (data.paymentHtml) {
+        console.log('📄 Shopier formu işleniyor...');
+        
+        // Geçici div oluştur
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = data.paymentHtml;
+        document.body.appendChild(tempDiv);
+        
+        // Formu bul ve submit et
+        const form = tempDiv.querySelector('form') as HTMLFormElement;
+        if (form) {
+          console.log('✅ Form bulundu, submit ediliyor...');
+          form.submit();
+        } else {
+          console.error('❌ Form bulunamadı');
+          throw new Error('Ödeme formu bulunamadı.');
         }
+      } else if (data.paymentUrl) {
+        console.log('🚀 URL yönlendirme...');
         window.location.href = data.paymentUrl;
       } else {
-        throw new Error('Ödeme URL\'si alınamadı. Lütfen tekrar deneyin.');
+        throw new Error('Ödeme bilgisi alınamadı.');
       }
     } catch (err) {
-      console.error('❌ Purchase error:', err);
+      console.error('❌ Satın alma hatası:', err);
       setError(err instanceof Error ? err.message : 'Bilinmeyen bir hata oluştu.');
       setLoadingPackage(null);
     }
